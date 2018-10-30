@@ -1,6 +1,7 @@
 from scrapy.spiders import Spider
-from utils import *
+
 from bookingcrawler.items import *
+from utils import *
 
 
 class BookingSpider(Spider):
@@ -13,34 +14,60 @@ class BookingSpider(Spider):
 
         start_urls = [(city_url.format(city), city) for city in cities]
         for (url, city) in start_urls:
+
             yield scrapy.Request(url,
                                  self.parse,
-                                 meta={'start_url': url,
-                                       'city': city})
+                                 meta={'city': city})
 
     def parse(self, response):
         city = response.meta.get('city')
         offset = response.xpath('//*[@id="search_results_table"]/div[4]/div[1]/ul/li[2]/ul//a/@href').extract()[-1]
+        next_page_url = response.xpath(
+            '//*[@id="search_results_table"]/div[4]/div[1]/ul/li[2]/ul/li[2]/a/@href').extract_first().strip()[:-2]
+
+        number_of_rows = response.xpath('//*[@id="search_results_table"]/div[4]/div[2]/span/text()').extract_first()
+        number_of_rows = int(number_of_rows.split('–')[-1].strip())
+
         offset = int(offset.split('offset=')[-1])
         _counter = 0
-        while _counter < offset:
 
-            _page_url = city_url_pages.format(city, _counter)
-            _counter += 50
+        while _counter < offset + number_of_rows:
+            _page_url = next_page_url + str(_counter)
+
+            _counter += number_of_rows
             yield scrapy.Request(_page_url,
                                  self.parse_page,
                                  meta={'city': city})
 
     def parse_page(self, response):
 
-        _hotel_links = response.xpath('//*[@id="hotellist_inner"]/div//h3/a/@href').extract()
-        for _hotel_link in _hotel_links:
+        _hotels = response.xpath('//*[@id="hotellist_inner"]/div[@data-hotelid]')
+
+        for _hotel in _hotels:
+            _hotel_stars = _hotel.xpath('./@data-class').extract_first()
+            _hotel_score = _hotel.xpath('./@data-score').extract_first()
+            _hotel_coordinates = _hotel.xpath('.//a[@data-coords]/@data-coords').extract_first()
+            _hotel_link = _hotel.xpath('.//a[@class="hotel_name_link url"]/@href').extract_first()
+            # print(_hotel_stars, _hotel_score, _hotel_coordinates, _hotel_link, '*'*100)
             hotel_link = self.domain_root + _hotel_link.strip()
             yield scrapy.Request(hotel_link,
                                  self.parse_hotel,
-                                 meta={'city': response.meta.get('city')})
+                                 meta={'city': response.meta.get('city'),
+                                       'stars': _hotel_stars,
+                                       'score': _hotel_score,
+                                       'coordinates': _hotel_coordinates})
 
-    def parse_hotel(self, response):
-        city = response.meta.get('city')
-        address = response.xpath('//*[@id="showMap2"]/span/text()').extract_first().strip()
-        print(address)
+    @staticmethod
+    def parse_hotel(response):
+        hotel_address = response.xpath('//*[@id="showMap2"]/span[@data-bbox]/text()').extract_first().strip()
+        hotel_name = response.xpath('//*[@id="hp_hotel_name"]/text()').extract_first()
+
+        hotel = BookingHotel()
+        hotel['hotel_name'] = hotel_name.strip()
+        hotel['hotel_address'] = hotel_address.strip()
+        hotel['hotel_city'] = response.meta.get('city').strip()
+        hotel['hotel_star'] = response.meta.get('stars').strip()
+        hotel['hotel_score'] = response.meta.get('score').strip()
+        hotel['hotel_coordinates'] = response.meta.get('coordinates').strip()
+
+        yield hotel
