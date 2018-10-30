@@ -1,7 +1,7 @@
 from scrapy.spiders import Spider
 
 from bookingcrawler.items import *
-from utils import *
+from bookingcrawler.utils import *
 
 
 class BookingSpider(Spider):
@@ -61,6 +61,8 @@ class BookingSpider(Spider):
     def parse_hotel(response):
         hotel_address = response.xpath('//*[@id="showMap2"]/span[@data-bbox]/text()').extract_first().strip()
         hotel_name = response.xpath('//*[@id="hp_hotel_name"]/text()').extract_first()
+        hotel_bbox_string = response.xpath('//*[@id="showMap2"]/span[2]/@data-bbox').extract_first()
+        hotel_coordinates_string = response.meta.get('coordinates')
 
         hotel = BookingHotel()
         hotel['hotel_name'] = hotel_name.strip()
@@ -68,6 +70,6 @@ class BookingSpider(Spider):
         hotel['hotel_city'] = response.meta.get('city').strip()
         hotel['hotel_star'] = response.meta.get('stars').strip()
         hotel['hotel_score'] = response.meta.get('score').strip()
-        hotel['hotel_coordinates'] = response.meta.get('coordinates').strip()
-
+        hotel['hotel_coordinates'] = rotate_coordinates(hotel_coordinates_string)
+        hotel['hotel_bbox'] = rotate_bbox(hotel_bbox_string)
         yield hotel

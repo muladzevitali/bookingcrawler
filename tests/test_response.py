@@ -1,15 +1,14 @@
 import requests
-
-
+import scrapy
 city_name = 'vegas'
-city_url = f'http://www.booking.com/searchresults.html?src=index&nflt=&error_url=' \
-           f'http%3A%2F%2Fwww.booking.com%2Findex.en-gb.html%3Fsid%3Debf463cfc313cfe' \
-           f'4089c1cef5d42de23%3Bdcid%3D1%3B&dcid=1&lang=en-gb&sid=ebf463cfc313cfe4089c1ce' \
-           f'f5d42de23&si=ai%2Cco%2Cci%2Cre%2Cdi&dest_type_filter=all&ss={city_name}' \
-           f'&checkin_monthday=0&checkin_year_month=0&checkout_monthday=0&checkout_year_month=0' \
-           f'&idf=on&org_nr_rooms=1&org_nr_adults=2&org_nr_children=0'
+city_url = 'https://www.booking.com/hotel/ge/salve-tbilisi.en-gb.html?label=gen173nr-' \
+           '1DCAEoggJCAlhYSDNYBGhSiAEBmAEuwgEDeDExyAEM2AED6AEBkgIBeagCAw;sid=19a70cb1bcb092' \
+           '3e1c2ed58f029a48c7;dest_id=900047975;dest_type=city;dist=0;group_adults=2;hapos=1;' \
+           'hpos=1;room1=A%2CA;sb_price_type=total;srepoch=1540941367;srfid=f729acfce5459008' \
+           '00ffe7853dd3690a3fb93a6dX1;srpvid=0f79a39b84ee00de;type=total;ucfs=1&#hotelTmpl'
 
 print(city_url)
 response = requests.get(city_url)
-
-# 'https://www.booking.com/searchresults.en-gb.html?si=ai%2Cco%2Cci%2Cre%2Cdi;ss=new%20york'
+tree = scrapy.Selector(response)
+bbox = tree.xpath('//*[@id="showMap2"]/span[2]/@data-bbox').extract()
+print(bbox)
