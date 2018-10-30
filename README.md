@@ -7,4 +7,4 @@
 * run 'scrapy runspider bookingcrawler/spiders/bookingspider.py -o results.csv'
 
 
-**_column names: hotel_name, hotel_star, hotel_score, hotel_address, hotel_city, hotel_coordinates, hotel_bbox_**
+**_Output csv column names: hotel_name, hotel_star, hotel_score, hotel_address, hotel_city, hotel_coordinates, hotel_bbox_**
