@@ -1,10 +1,8 @@
 
+city_url = 'https://www.booking.com/searchresults.en-gb.html?ss={}&order=class'
 
-city_url = 'http://www.booking.com/searchresults.html?src=index&nflt=&error_url=http%3A%2F%2F' \
-           'www.booking.com%2Findex.en-gb.html%3Fsid%3Debf463cfc313cfe4089c1cef5d42de23%3Bdc' \
-           'id%3D1%3B&dcid=1&lang=en-gb&sid=ebf463cfc313cfe4089c1cef5d42de23&si=ai%2Cco%2Cci%2' \
-           'Cre%2Cdi&dest_type_filter=all&ss={}&checkin_monthday=0&checkin_year_month=0&' \
-           'checkout_monthday=0&checkout_year_month=0&idf=on&org_nr_rooms=1&org_nr_adults=2&org_nr_children=0'
+first_page = 'http://www.booking.com/searchresults.en-gb.html?si=ai%2Cco%2Cci%2Cre%2Cdi;ss={}&order=class'
+print(first_page.format('moscow'))
 
 
 def load_cities():
