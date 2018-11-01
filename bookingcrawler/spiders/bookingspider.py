@@ -11,9 +11,10 @@ links = open('links.txt', 'a')
 class BookingSpider(Spider):
     name = "booking"
     allowed_domains = ["www.booking.com"]
+    hotels_dict = dict()
     domain_root = 'https://www.booking.com'
-    fieldnames = ['hotel_city', 'hotel_name', 'hotel_star', 'hotel_score', 'hotel_address', 'hotel_bbox',
-                  'hotel_coordinates']
+    fieldnames = ['hotel_city', 'hotel_name', 'hotel_star', 'hotel_score', 'hotel_address', 'hotel_languages',
+                  'hotel_bbox', 'hotel_coordinates']
 
     def start_requests(self):
         cities = load_cities()
@@ -29,6 +30,7 @@ class BookingSpider(Spider):
         for (url, city) in start_urls:
             yield scrapy.Request(url,
                                  self.parse,
+                                 dont_filter=True,
                                  meta={'city': city,
                                        'url': url,
                                        'writer': city_writers[city]
@@ -38,10 +40,9 @@ class BookingSpider(Spider):
         city = response.meta.get('city')
         number_of_rows = response.xpath('//*[@id="search_results_table"]/div[4]/div[2]/span/text()').extract_first()
         number_of_rows = int(number_of_rows.split('–')[-1].strip())
-
         offset = self.get_number_of_hotels(response)
         _counter = 0
-        while _counter < 1000:
+        while _counter < offset + number_of_rows:
             if _counter == 0:
 
                 yield scrapy.Request(city_url.format(city),
@@ -67,19 +68,21 @@ class BookingSpider(Spider):
     def parse_page(self, response):
         _hotels = response.xpath('//*[@id="hotellist_inner"]/div[@data-hotelid]')
         for _hotel in _hotels:
+            hotel_id = _hotel.xpath('./@data-hotelid').extract_first().strip()
+            if self.hotels_dict.get(hotel_id):
+                return None
+
+            self.hotels_dict[hotel_id] = 1
+
             _hotel_stars = _hotel.xpath('./@data-class').extract_first()
             _hotel_score = _hotel.xpath('./@data-score').extract_first()
-            _hotel_name = _hotel.xpath(
-                './/span[@data-et-click]/text()').extract_first().strip()
-
             _hotel_coordinates = _hotel.xpath('.//a[@data-coords]/@data-coords').extract_first()
             _hotel_link = _hotel.xpath('.//a[@class="hotel_name_link url"]/@href').extract_first()
             hotel_link = self.domain_root + _hotel_link.strip()
-            if response.meta.get('city') == 'Tbilisi':
-                links.write(_hotel_name + ' ' + response.meta.get('url') + '\n')
-                links.flush()
+
             yield scrapy.Request(hotel_link,
                                  self.parse_hotel,
+                                 dont_filter=True,
                                  meta={'city': response.meta.get('city'),
                                        'stars': _hotel_stars,
                                        'score': _hotel_score,
@@ -99,7 +102,8 @@ class BookingSpider(Spider):
                'hotel_star': response.meta.get('stars').strip(),
                'hotel_score': response.meta.get('score').strip(),
                'hotel_coordinates': rotate_coordinates(hotel_coordinates_string),
-               'hotel_bbox': rotate_bbox(hotel_bbox_string)}
+               'hotel_bbox': rotate_bbox(hotel_bbox_string),
+               'hotel_languages': self.get_languages(response)}
         writer.writerow(row)
 
     @staticmethod
@@ -116,32 +120,25 @@ class BookingSpider(Spider):
         _numbers_string = int(list(filter(lambda x: ',' in x, _header_string.split(' ')))[0].replace(',', ''))
         return _numbers_string
 
-    def get_property_type(self, property_type, response):
-        base_xpath = '//*[@id="filter_hoteltype"]/div[2]/a[{}]//span[@class="filter_count"]/text()'
-        property_type['apartments'] = self.get_clean_result(response, base_xpath.format(1))
-        property_type['hotels'] = self.get_clean_result(response, base_xpath.format(2))
-        property_type['guest_houses'] = self.get_clean_result(response, base_xpath.format(3))
-        property_type['hostels'] = self.get_clean_result(response, base_xpath.format(4))
-        property_type['holiday_homes'] = self.get_clean_result(response, base_xpath.format(5))
-        property_type['homestays'] = self.get_clean_result(response, base_xpath.format(6))
-        property_type['bed_and_breakfasts'] = self.get_clean_result(response, base_xpath.format(7))
-        property_type['villas'] = self.get_clean_result(response, base_xpath.format(8))
-        property_type['economy_hotels'] = self.get_clean_result(response, base_xpath.format(9))
-        property_type['country_houses'] = self.get_clean_result(response, base_xpath.format(10))
-        property_type['lodges'] = self.get_clean_result(response, base_xpath.format(11))
-        property_type['motels'] = self.get_clean_result(response, base_xpath.format(12))
-        property_type['lampsites'] = self.get_clean_result(response, base_xpath.format(13))
-        property_type['chalets'] = self.get_clean_result(response, base_xpath.format(14))
-        property_type['love_hotels'] = self.get_clean_result(response, base_xpath.format(15))
-        property_type['resorts'] = self.get_clean_result(response, base_xpath.format(16))
-        property_type['farm_stays'] = self.get_clean_result(response, base_xpath.format(17))
-        property_type['luxury_tents'] = self.get_clean_result(response, base_xpath.format(18))
-        property_type['holiday_parks'] = self.get_clean_result(response, base_xpath.format(19))
-        property_type['riads'] = self.get_clean_result(response, base_xpath.format(20))
-
     @staticmethod
     def get_clean_result(response, _xpath):
         value = response.xpath(_xpath).extract_first()
         if value:
             return value.strip()
         return None
+
+    @staticmethod
+    def get_languages(response):
+        languages_list = None
+
+        for div in response.xpath('//*[@id="hp_facilities_box"]/div[4]/div'):
+            text = div.xpath('.//h5/text()').extract()
+            for each in text:
+                if each.strip() == 'Languages spoken':
+                    languages_list = div.xpath('.//ul//text()').extract()
+
+        if not languages_list:
+            return None
+
+        languages = [each.strip() for each in languages_list if each.strip()]
+        return ', '.join(languages)

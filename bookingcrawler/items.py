@@ -32,7 +32,7 @@ class BookingHotel(scrapy.Item):
     hotel_city = scrapy.Field()
     hotel_coordinates = scrapy.Field()
     hotel_bbox = scrapy.Field()
-
+    hotel_laguages = scrapy.Field()
 
 
 
