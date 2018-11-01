@@ -2,7 +2,6 @@
 city_url = 'https://www.booking.com/searchresults.en-gb.html?ss={}&order=class'
 
 first_page = 'http://www.booking.com/searchresults.en-gb.html?si=ai%2Cco%2Cci%2Cre%2Cdi;ss={}&order=class'
-print(first_page.format('moscow'))
 
 
 def load_cities():
@@ -12,7 +11,6 @@ def load_cities():
     cities = [city.strip() for city in cities]
 
     return cities
-
 
 def rotate_coordinates(_coordinates):
     if not _coordinates:

@@ -13,7 +13,7 @@ class BookingSpider(Spider):
     allowed_domains = ["www.booking.com"]
     hotels_dict = dict()
     domain_root = 'https://www.booking.com'
-    fieldnames = ['hotel_city', 'hotel_name', 'hotel_star', 'hotel_score', 'hotel_address', 'hotel_languages',
+    fieldnames = ['hotel_city', 'hotel_name', 'hotel_star', 'hotel_district', 'hotel_address', 'hotel_languages',
                   'hotel_bbox', 'hotel_coordinates']
 
     def start_requests(self):
@@ -73,11 +73,12 @@ class BookingSpider(Spider):
                 return None
 
             self.hotels_dict[hotel_id] = 1
-
+            _hotel_district = self.get_district(_hotel)
+            # _hotel_property = self.get_property_type(_hotel)
             _hotel_stars = _hotel.xpath('./@data-class').extract_first()
-            _hotel_score = _hotel.xpath('./@data-score').extract_first()
             _hotel_coordinates = _hotel.xpath('.//a[@data-coords]/@data-coords').extract_first()
             _hotel_link = _hotel.xpath('.//a[@class="hotel_name_link url"]/@href').extract_first()
+            links.write(_hotel_link + '\n')
             hotel_link = self.domain_root + _hotel_link.strip()
 
             yield scrapy.Request(hotel_link,
@@ -85,8 +86,8 @@ class BookingSpider(Spider):
                                  dont_filter=True,
                                  meta={'city': response.meta.get('city'),
                                        'stars': _hotel_stars,
-                                       'score': _hotel_score,
                                        'coordinates': _hotel_coordinates,
+                                       'district': _hotel_district,
                                        'writer': response.meta.get('writer')
                                        })
 
@@ -100,9 +101,9 @@ class BookingSpider(Spider):
                'hotel_address': hotel_address.strip(),
                'hotel_city': response.meta.get('city').strip(),
                'hotel_star': response.meta.get('stars').strip(),
-               'hotel_score': response.meta.get('score').strip(),
                'hotel_coordinates': rotate_coordinates(hotel_coordinates_string),
                'hotel_bbox': rotate_bbox(hotel_bbox_string),
+               'hotel_district': response.meta.get('district'),
                'hotel_languages': self.get_languages(response)}
         writer.writerow(row)
 
@@ -142,3 +143,16 @@ class BookingSpider(Spider):
 
         languages = [each.strip() for each in languages_list if each.strip()]
         return ', '.join(languages)
+
+    @staticmethod
+    def get_property_type(response):
+        response_text = response.xpath('//div[@class="sr_item_main_block"]/div//a[@href]/@href').extract()
+        # print(response_text, '-' * 200)
+        return response_text
+
+    @staticmethod
+    def get_district(response):
+        text = response.xpath('.//a[@data-coords]//text()').extract_first()
+        if not text:
+            return None
+        return text.replace('– Show on map', '').strip()
