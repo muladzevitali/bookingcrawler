@@ -1,13 +1,12 @@
 import requests
 import scrapy
 
-city_name = 'vegas'
-city_url = 'http://www.booking.com/searchresults.en-gb.html?si=ai%2Cco%2Cci%2Cre%2Cdi;ss=tbilisi&order=class'
-response = requests.get(city_url)
+head = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"}
+
+city_url = 'https://www.booking.com/hotel/ge/tbilisi-marriott.en-gb.html#basiclayout'
+response = requests.get(city_url, headers=head)
 tree = scrapy.Selector(response)
-script = tree.xpath('//a[@class="hotel_lp_alt_theme_links"]').extract()
-print(script)
-# print(response.url)
-file = open("resp_text.html", "w")
-file.write(response.text)
-file.close()
+script = tree.xpath('//*[@data-bbox]/@data-bbox').extract()
+print(response.url, script)

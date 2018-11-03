@@ -1,11 +1,7 @@
 import csv
-
+import scrapy
 from scrapy.spiders import Spider
-
-from bookingcrawler.items import *
-from bookingcrawler.utils import *
-
-links = open('links.txt', 'a')
+from utils.crawler_utils import *
 
 
 class BookingSpider(Spider):
@@ -13,10 +9,13 @@ class BookingSpider(Spider):
     allowed_domains = ["www.booking.com"]
     hotels_dict = dict()
     domain_root = 'https://www.booking.com'
-    fieldnames = ['hotel_city', 'hotel_name', 'hotel_star', 'hotel_district', 'hotel_address', 'hotel_languages',
-                  'hotel_bbox', 'hotel_coordinates']
+    fieldnames = ['city', 'name', 'star', 'property_type', 'district', 'address', 'languages',
+                  'bbox', 'coordinates']
 
     def start_requests(self):
+        """
+        Load files to write crawled hotels, and start crawling for each city
+        """
         cities = load_cities()
         city_writers = dict()
         for city in cities:
@@ -37,10 +36,13 @@ class BookingSpider(Spider):
                                        })
 
     def parse(self, response):
+        """
+        Generate pages for each hotel
+        """
         city = response.meta.get('city')
         number_of_rows = response.xpath('//*[@id="search_results_table"]/div[4]/div[2]/span/text()').extract_first()
         number_of_rows = int(number_of_rows.split('–')[-1].strip())
-        offset = self.get_number_of_hotels(response)
+        offset = get_number_of_hotels(response)
         _counter = 0
         while _counter < offset + number_of_rows:
             if _counter == 0:
@@ -66,6 +68,9 @@ class BookingSpider(Spider):
             _counter += number_of_rows
 
     def parse_page(self, response):
+        """
+        Parse the hotels page
+        """
         _hotels = response.xpath('//*[@id="hotellist_inner"]/div[@data-hotelid]')
         for _hotel in _hotels:
             hotel_id = _hotel.xpath('./@data-hotelid').extract_first().strip()
@@ -73,12 +78,10 @@ class BookingSpider(Spider):
                 return None
 
             self.hotels_dict[hotel_id] = 1
-            _hotel_district = self.get_district(_hotel)
-            # _hotel_property = self.get_property_type(_hotel)
+            _hotel_district = get_district(_hotel)
             _hotel_stars = _hotel.xpath('./@data-class').extract_first()
             _hotel_coordinates = _hotel.xpath('.//a[@data-coords]/@data-coords').extract_first()
-            _hotel_link = _hotel.xpath('.//a[@class="hotel_name_link url"]/@href').extract_first()
-            links.write(_hotel_link + '\n')
+            _hotel_link = _hotel.xpath('.//div[@class="sr_item_photo"]/a/@href').extract_first()
             hotel_link = self.domain_root + _hotel_link.strip()
 
             yield scrapy.Request(hotel_link,
@@ -91,68 +94,24 @@ class BookingSpider(Spider):
                                        'writer': response.meta.get('writer')
                                        })
 
-    def parse_hotel(self, response):
+    @staticmethod
+    def parse_hotel(response):
+        """
+        Parse the hotel page
+        """
         hotel_address = response.xpath('//*[@id="showMap2"]/span[@data-bbox]/text()').extract_first().strip()
         hotel_name = response.xpath('//*[@id="hp_hotel_name"]/text()').extract_first()
-        hotel_bbox_string = self.get_bbox(response)
+        hotel_bbox_string = get_bbox(response)
         hotel_coordinates_string = response.meta.get('coordinates')
+
         writer = response.meta.get('writer')
-        row = {'hotel_name': hotel_name.strip(),
-               'hotel_address': hotel_address.strip(),
-               'hotel_city': response.meta.get('city').strip(),
-               'hotel_star': response.meta.get('stars').strip(),
-               'hotel_coordinates': rotate_coordinates(hotel_coordinates_string),
-               'hotel_bbox': rotate_bbox(hotel_bbox_string),
-               'hotel_district': response.meta.get('district'),
-               'hotel_languages': self.get_languages(response)}
+        row = {'name': hotel_name.strip(),
+               'address': hotel_address.strip(),
+               'city': response.meta.get('city').strip(),
+               'star': response.meta.get('stars').strip(),
+               'coordinates': rotate_coordinates(hotel_coordinates_string),
+               'bbox': rotate_bbox(hotel_bbox_string),
+               'district': response.meta.get('district'),
+               'languages': get_languages(response),
+               'property_type': get_property_type(response)}
         writer.writerow(row)
-
-    @staticmethod
-    def get_bbox(response):
-        hotel_bbox_string = response.xpath('//*[@data-bbox]/@data-bbox').extract()
-        for bbox in hotel_bbox_string:
-            if bbox:
-                return bbox
-        return None
-
-    @staticmethod
-    def get_number_of_hotels(response):
-        _header_string = response.xpath('//*[@class="sr_header--title"]//*[@class="sorth1"]/text()').extract_first()
-        _numbers_string = int(list(filter(lambda x: ',' in x, _header_string.split(' ')))[0].replace(',', ''))
-        return _numbers_string
-
-    @staticmethod
-    def get_clean_result(response, _xpath):
-        value = response.xpath(_xpath).extract_first()
-        if value:
-            return value.strip()
-        return None
-
-    @staticmethod
-    def get_languages(response):
-        languages_list = None
-
-        for div in response.xpath('//*[@id="hp_facilities_box"]/div[4]/div'):
-            text = div.xpath('.//h5/text()').extract()
-            for each in text:
-                if each.strip() == 'Languages spoken':
-                    languages_list = div.xpath('.//ul//text()').extract()
-
-        if not languages_list:
-            return None
-
-        languages = [each.strip() for each in languages_list if each.strip()]
-        return ', '.join(languages)
-
-    @staticmethod
-    def get_property_type(response):
-        response_text = response.xpath('//div[@class="sr_item_main_block"]/div//a[@href]/@href').extract()
-        # print(response_text, '-' * 200)
-        return response_text
-
-    @staticmethod
-    def get_district(response):
-        text = response.xpath('.//a[@data-coords]//text()').extract_first()
-        if not text:
-            return None
-        return text.replace('– Show on map', '').strip()
